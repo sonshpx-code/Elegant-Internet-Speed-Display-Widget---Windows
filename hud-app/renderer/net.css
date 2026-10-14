@@ -1,0 +1,315 @@
+/* ==========================================================================
+   DSH Net HUD —— 贴边网速卡片
+
+   与 dsh-status-hud 同一套画法，两条规矩：
+
+   1. **卡片就是窗口**。卡片之外一个像素都不画：没有 backdrop-filter（透明窗口
+      背后没有可模糊的内容，只会掉帧），也没有外投影（投影画在自己盒子外面，会被
+      窗口矩形笔直剪断成一条灰带，而且透明像素照样吃鼠标）。玻璃感 = 半透明渐变面
+      + 1px 内描边 + 顶部内高光，全部用 `inset` 从内部定义。
+   2. **一个属性换全套颜色**。`data-link` 只改 --s/--s-ink/--s-soft，光晕、数字暗亮、
+      底部走势、离线提示会一起联动，不会互相打架。
+
+   所有时长写 `calc(NNNms * var(--pace))`，所有振幅写 `calc(系数 * var(--amp))`：
+   动画强度这个设定不需要进任何一条 CSS 逻辑。
+   ========================================================================== */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100px;              /* 正好是卡片：窗口之外没有任何留白 */
+  height: 68px;
+  background: transparent;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+body {
+  font-family: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------- 令牌 */
+
+#stage {
+  position: relative;
+  width: 100px;
+  height: 68px;
+
+  --amp: 1;
+  --pace: 1;
+
+  /* 箭头呼吸的相位（0–1），由 net.js 每 260ms 推一次；不用 CSS 无限动画，见文件末尾 */
+  --breath: 0;
+
+  --radius: 15px;
+
+  --text: #E9EEF9;
+  --text-dim: #97A4BC;
+  --text-mute: #67738C;
+
+  --surface-a: rgba(22, 28, 43, .88);
+  --surface-b: rgba(12, 16, 27, .93);
+  --stroke: rgba(255, 255, 255, .085);
+  --fill: rgba(255, 255, 255, .055);
+  --fill-strong: rgba(255, 255, 255, .09);
+
+  --down: #34D399;
+  --up: #60A5FA;
+
+  /* 采样器状态色：接通是青绿，停滞是琥珀，离线是红 */
+  --s: #64748B;
+  --s-ink: #B6C2D6;
+  --s-soft: rgba(100, 116, 139, .14);
+
+  --down-level: .18;
+  --up-level: .18;
+
+  animation: stage-in calc(300ms * var(--pace)) cubic-bezier(.2, .9, .25, 1) both;
+}
+
+#stage[data-theme="light"] {
+  --text: #101828;
+  --text-dim: #4A5769;
+  --text-mute: #7C8798;
+
+  --surface-a: rgba(255, 255, 255, .93);
+  --surface-b: rgba(243, 246, 252, .96);
+  --stroke: rgba(16, 24, 40, .10);
+  --fill: rgba(16, 24, 40, .05);
+  --fill-strong: rgba(16, 24, 40, .085);
+
+  --down: #059669;
+  --up: #2563EB;
+  --s-ink: #475569;
+}
+
+/* 动画强度：先振幅，后节奏 */
+#stage[data-animation="calm"] { --amp: .55; --pace: 1.4; }
+#stage[data-animation="standard"] { --amp: 1; --pace: 1; }
+#stage[data-animation="lively"] { --amp: 1.45; --pace: .72; }
+
+/* 采样器状态（一个属性换全套颜色） */
+#stage[data-link="live"] { --s: #34D399; --s-ink: #6EE7B7; --s-soft: rgba(52, 211, 153, .15); }
+#stage[data-link="idle"] { --s: #64748B; --s-ink: #B6C2D6; --s-soft: rgba(100, 116, 139, .14); }
+#stage[data-link="connecting"] { --s: #64748B; --s-ink: #B6C2D6; --s-soft: rgba(100, 116, 139, .14); }
+#stage[data-link="stale"] { --s: #FBBF24; --s-ink: #FCD34D; --s-soft: rgba(251, 191, 36, .16); }
+#stage[data-link="offline"] { --s: #F87171; --s-ink: #FCA5A5; --s-soft: rgba(248, 113, 113, .16); }
+
+/* --------------------------------------------------------------- 卡片 */
+
+#card {
+  position: relative;
+  width: 100px;
+  height: 68px;
+  padding: 7px 8px 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  isolation: isolate;                 /* 让负 z-index 的光晕只在本卡片内沉底 */
+
+  background: linear-gradient(152deg, var(--surface-a), var(--surface-b));
+
+  box-shadow:
+    inset 0 0 0 1px var(--stroke),
+    inset 0 1px 0 rgba(255, 255, 255, .055);
+
+  animation: card-in calc(300ms * var(--pace)) cubic-bezier(.2, .9, .25, 1) both;
+}
+
+#stage[data-theme="light"] #card {
+  box-shadow:
+    inset 0 0 0 1px var(--stroke),
+    inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+
+/* 两层光晕：下行在左上、上行在右下，亮度跟着各自方向的流量走 */
+.aura {
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  transition: opacity calc(520ms * var(--pace)) ease;
+}
+/* 上行在上、下行在下：光晕跟着各自的行走 */
+.aura-up {
+  inset: -45% -25% auto -25%;
+  height: 140%;
+  opacity: var(--up-level);
+  background: radial-gradient(56% 76% at 94% 0%, color-mix(in srgb, var(--up) 32%, transparent) 0%, transparent 70%);
+}
+.aura-down {
+  inset: auto -25% -55% -25%;
+  height: 150%;
+  opacity: var(--down-level);
+  background: radial-gradient(52% 72% at 6% 100%, color-mix(in srgb, var(--down) 34%, transparent) 0%, transparent 72%);
+}
+
+/* 迷你走势：背景层，画在数字下面 */
+#spark {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100px;
+  height: 26px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: .95;
+}
+#stage[data-sparkline="off"] #spark { display: none; }
+
+/* --------------------------------------------------------------- 数值 */
+
+.rows {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  height: 42px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 21px;
+}
+
+/*
+ * 箭头用 SVG：↓↑ 字形在这个字号下太细，描边宽度要能直接调粗。
+ * **位置钉死在行的最左边**：它紧贴卡片边缘，不随数字位数移动——
+ * “跟着数字走”虽然看起来贴得近，但每变一次位数箭头就横向挪一下，读起来是抖的。
+ * 代价是数字短时它俩之间会有空隙，但卡片本身只有 100px 宽，这点空隙是换稳定值得的。
+ */
+.arrow {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--text-mute);
+  opacity: .82;
+  transition: color calc(320ms * var(--pace)) ease, opacity calc(320ms * var(--pace)) ease;
+}
+.row[data-dir="down"] .arrow { color: var(--down); }
+.row[data-dir="up"] .arrow { color: var(--up); }
+
+/* 有流量时箭头才亮起来、并轻轻呼吸 —— 状态是速度，不是颜色 */
+.row[data-active="1"] .arrow {
+  opacity: .86;
+}
+
+/*
+ * 数值占满中间那段，右对齐顶着单位列：位数变化时它向左生长，
+ * 右端和单位、左端的箭头都纹丝不动。
+ */
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 620;
+  letter-spacing: .005em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unit {
+  flex: none;
+  width: 27px;                 /* 正好放下 MB/s，不留空档 */
+  font-size: 10px;
+  font-weight: 560;
+  letter-spacing: .01em;
+  color: var(--text-mute);
+  white-space: nowrap;
+  /* 档位由 JS 打在 data-tier 上：透明度/颜色/字重一起变，切换是渐变不是跳变 */
+  transition: opacity calc(460ms * var(--pace)) ease, color calc(460ms * var(--pace)) ease;
+}
+
+/*
+ * 单位随速度档位越来越显眼，档位整体偏亮一档：
+ *   B/s  = 稍淡（0.58）
+ *   KB/s = 明显（满透明度 + 亮一档色 + 加粗）—— 日常最常见的量级，值得显眼
+ *   MB/s = 最亮（正文色 + 更粗）
+ *   GB/s = 与 MB/s 相同（千兆以上的家用带宽很少见，再区分没有意义）
+ * 三件事一起拉开：透明度、颜色、字重 —— 只调透明度在这个字号下几乎看不出来。
+ */
+.unit[data-tier="0"] { opacity: .58; }
+.unit[data-tier="1"] { opacity: 1; color: var(--text-dim); font-weight: 640; }
+.unit[data-tier="2"] { opacity: 1; color: var(--text); font-weight: 700; }
+.unit[data-tier="3"] { opacity: 1; color: var(--text); font-weight: 700; }
+
+.row[data-dir="down"] .value { color: var(--text); }
+.row[data-dir="up"] .value { color: var(--text-dim); }
+
+/* 数值真的变了才加这个类：一次 240ms 的淡入，读起来像在计数 */
+.value.ticked { animation: value-tick calc(240ms * var(--pace)) cubic-bezier(.2, .9, .25, 1); }
+
+/* 离线/停滞时数字暗下去，不装作还在测 */
+#stage[data-link="offline"] .value,
+#stage[data-link="offline"] .unit { opacity: .45; }
+#stage[data-link="stale"] .value { opacity: .72; }
+
+/* --------------------------------------------------------------- 提示条 */
+
+.note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  font-size: 10px;
+  font-weight: 560;
+  letter-spacing: .01em;
+  color: var(--s-ink);
+  background: linear-gradient(0deg, var(--s-soft), transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: note-in calc(260ms * var(--pace)) cubic-bezier(.2, .9, .25, 1) both;
+}
+.note[hidden] { display: none; }
+
+/* --------------------------------------------------------------- 动画 */
+
+@keyframes stage-in { from { opacity: 0 } to { opacity: 1 } }
+
+@keyframes card-in {
+  from { opacity: 0; transform: scale(.968) translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes note-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes value-tick {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+
+/*
+ * 箭头的“呼吸”由 JS 每 260ms 推一次 --breath（见 net.js），**不是** CSS 无限动画。
+ * 原因是实测出来的：这台机器没有真实显卡（Chromium 走软件合成），而一个 CSS 无限动画
+ * 会让合成器一直按 60fps 重绘整个透明窗口 —— 渲染进程 + gpu-process 合计约 18% 单核。
+ * 换成 4Hz 的 JS 驱动之后同样的观感只要 1/15 的重绘。
+ */
+.row[data-active="1"] .arrow { opacity: calc(.86 + .14 * var(--breath, 0)); }
+
+@media (prefers-reduced-motion: reduce) {
+  #stage, #card, .note, .value.ticked { animation: none !important; }
+  .row[data-active="1"] .arrow { opacity: 1; }
+}

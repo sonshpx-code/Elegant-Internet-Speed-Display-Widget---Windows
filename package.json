@@ -1,0 +1,29 @@
+{
+  "name": "dsh-net-hud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DSH 网速组件: an edge-docked translucent widget showing live download/upload speed",
+  "type": "module",
+  "main": "lib/host.js",
+  "exports": {
+    ".": {
+      "default": "./lib/host.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/host.js",
+    "cordis.patch.yml",
+    "hud-app"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

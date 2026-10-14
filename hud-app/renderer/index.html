@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
+  <title>网速悬浮组件</title>
+  <link rel="stylesheet" href="net.css">
+</head>
+<body>
+  <!--
+    窗口就是卡片：卡片之外没有任何像素被画上。所以没有外投影——投影按定义画在
+    自己盒子外面，而窗口矩形会把它笔直剪断，那正是“灰色带 + 死直边”的来源。
+    边界改由 1px 内描边 + 顶部内高光从内部定义。
+
+    `data-theme` 与 `data-animation` 由主进程下发的 shell 决定；
+    `data-link` 是采样器状态（live / idle / stale / offline），它只改三个状态色，
+    卡片的光晕、数字的暗亮、底部的迷你走势会一起联动。
+
+    行的顺序是 **上行在上、下行在下**；箭头用 SVG 而不是 ↓↑ 字形，
+    因为字形在 16px 下太细，描边宽度要能直接调。
+  -->
+  <div id="stage" data-theme="dark" data-animation="standard" data-link="connecting">
+    <section id="card" role="status" aria-live="polite" aria-label="实时网速">
+      <span class="aura aura-up" aria-hidden="true"></span>
+      <span class="aura aura-down" aria-hidden="true"></span>
+
+      <!-- 迷你走势：背景层，不用 keyframes 表达持续变化的曲线 -->
+      <canvas id="spark" aria-hidden="true"></canvas>
+
+      <div class="rows">
+        <div class="row" data-dir="up">
+          <svg class="arrow" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M6 10.4 V2.8 M3 5.7 L6 2.6 L9 5.7" />
+          </svg>
+          <span class="value" id="tx-value">0</span>
+          <span class="unit" id="tx-unit" data-tier="0">B/s</span>
+        </div>
+        <div class="row" data-dir="down">
+          <svg class="arrow" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M6 1.6 V9.2 M3 6.3 L6 9.4 L9 6.3" />
+          </svg>
+          <span class="value" id="rx-value">0</span>
+          <span class="unit" id="rx-unit" data-tier="0">B/s</span>
+        </div>
+      </div>
+
+      <div class="note" id="note" hidden></div>
+    </section>
+  </div>
+
+  <script src="../i18n.js"></script>
+  <script src="net.js"></script>
+</body>
+</html>

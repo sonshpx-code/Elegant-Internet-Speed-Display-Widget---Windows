@@ -1,0 +1,67 @@
+{
+  "name": "elegant-net-hud",
+  "productName": "Net HUD",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An elegant always-on-top network speed widget for Windows: a small translucent card that floats at the edge of your screen and shows live download/upload speed.",
+  "author": "sonshpx-code",
+  "license": "MIT",
+  "homepage": "https://github.com/sonshpx-code/Elegant-Internet-Speed-Display-Widget---Windows",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sonshpx-code/Elegant-Internet-Speed-Display-Widget---Windows.git"
+  },
+  "main": "main.js",
+  "scripts": {
+    "start": "electron --no-sandbox .",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "io.github.sonshpx.nethud",
+    "productName": "Net HUD",
+    "copyright": "MIT licensed",
+    "directories": {
+      "output": "../dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "i18n.js",
+      "renderer/**/*",
+      "assets/icon.ico",
+      "assets/tray.png",
+      "!**/*.cs",
+      "!src/**",
+      "!bin/**",
+      "!.state/**"
+    ],
+    "extraResources": [
+      { "from": "bin/netspeed-sampler.exe", "to": "bin/netspeed-sampler.exe" },
+      { "from": "bin/net-hud-watchdog.exe", "to": "bin/net-hud-watchdog.exe" }
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.ico",
+      "artifactName": "NetHUD-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Net HUD",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "uninstallDisplayName": "Net HUD ${version}",
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false
+    }
+  }
+}

@@ -1,0 +1,22 @@
+# 依赖与构建产物
+node_modules/
+dist/
+hud-app/node_modules/
+hud-app/dist/
+
+# 运行时状态（偏好、日志、Chromium 缓存）—— 每台机器都不一样，不进仓库
+.state/
+.state-*/
+hud-app/.state/
+hud-app/.state-*/
+*.log
+
+# 编译产物（源码在 hud-app/src，用系统自带的 csc.exe 编译，见 tools/build-sampler.ps1）
+hud-app/bin/*.exe
+
+# 编辑器与系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.lnk

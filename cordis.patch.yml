@@ -1,0 +1,7 @@
+# 这个 bundle 自己声明加载器的行：装上 bundle 就够了，profile 的 cordis.patch.yml 不用改。
+#
+# 用 `insert`（而不是裸的 id 定向 patch）才能追加一条新行：
+# 没有 insert 的矩阵项只能覆盖已存在的条目。
+- insert:
+    - id: net-hud
+      name: dsh-net-hud
